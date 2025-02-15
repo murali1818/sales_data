@@ -1,50 +1,75 @@
 import time
 import requests
 from bs4 import BeautifulSoup
+from fake_useragent import UserAgent
 
-def get_all_prices(product_name, retries=3):
+# Generate random User-Agent to avoid bot detection
+ua = UserAgent()
+
+# Function to get product prices from Flipkart
+def get_flipkart_prices(product_name):
+    headers = {"User-Agent": ua.random}
     search_url = f"https://www.flipkart.com/search?q={product_name}"
+    response = requests.get(search_url, headers=headers)
 
-    for _ in range(retries):
-        response = requests.get(search_url)
+    if response.status_code == 200:
+        soup = BeautifulSoup(response.text, 'html.parser')
+        price_elements = soup.find_all('div', {'class': '_30jeq3'})
 
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.text, 'html.parser')
+        prices = [float(price.text.replace('₹', '').replace(',', '').strip()) for price in price_elements]
+        return sorted(prices) if prices else None
+    else:
+        print(f"Flipkart request failed. Status Code: {response.status_code}")
+        return None
 
-            # Extract all the prices on the page
-            price_elements = soup.find_all('div', {'class': '_1vC4OE'}) + soup.find_all('div', {'class': '_30jeq3'})
+# Function to get product prices from Amazon
+def get_amazon_prices(product_name):
+    headers = {"User-Agent": ua.random}
+    search_url = f"https://www.amazon.in/s?k={product_name}"
+    response = requests.get(search_url, headers=headers)
 
-            if price_elements:
-                prices = [float(price.text.replace('₹', '').replace(',', '').strip()) for price in price_elements]
+    if response.status_code == 200:
+        soup = BeautifulSoup(response.text, 'html.parser')
+        price_elements = soup.find_all('span', {'class': 'a-price-whole'})
 
-                if prices:
-                    return sorted(prices)
-                else:
-                    print("Prices not found on the page.")
-                    return None
-            else:
-                print("No price elements found on the page.")
-                return None
+        prices = [float(price.text.replace(',', '').strip()) for price in price_elements]
+        return sorted(prices) if prices else None
+    else:
+        print(f"Amazon request failed. Status Code: {response.status_code}")
+        return None
 
-        elif response.status_code == 503:
-            print("Server is currently unavailable. Retrying...")
-            time.sleep(5)  # Add a delay of 5 seconds before retrying
-            continue
+# Function to get product prices from Reliance Digital
+def get_reliance_prices(product_name):
+    headers = {"User-Agent": ua.random}
+    search_url = f"https://www.reliancedigital.in/search?q={product_name}"
+    response = requests.get(search_url, headers=headers)
 
+    if response.status_code == 200:
+        soup = BeautifulSoup(response.text, 'html.parser')
+        price_elements = soup.find_all('span', {'class': 'TextWeb__Text-sc-1cyx778-0'})
+
+        prices = [float(price.text.replace('₹', '').replace(',', '').strip()) for price in price_elements if '₹' in price.text]
+        return sorted(prices) if prices else None
+    else:
+        print(f"Reliance Digital request failed. Status Code: {response.status_code}")
+        return None
+
+# Function to get prices from all websites
+def get_all_prices(product_name):
+    websites = {
+        "Flipkart": get_flipkart_prices(product_name),
+        "Amazon": get_amazon_prices(product_name),
+        "Reliance Digital": get_reliance_prices(product_name),
+    }
+
+    for site, prices in websites.items():
+        if prices:
+            print(f"\n{site} Prices:")
+            for price in prices:
+                print(f"₹{price}")
         else:
-            print(f"Failed to retrieve the page. Status Code: {response.status_code}")
-            return None
+            print(f"\nNo prices found on {site}.")
 
-    print(f"Unable to retrieve prices for {product_name} on Flipkart after {retries} retries.")
-    return None
-
-# Example usage:
+# Example Usage
 product_name = input("Enter the product name: ")
-all_prices = get_all_prices(product_name)
-
-if all_prices is not None:
-    print(f"All prices for {product_name} on Flipkart in ascending order are:")
-    for price in all_prices:
-        print(f"₹{price}")
-else:
-    print(f"Unable to retrieve prices for {product_name} on Flipkart.")
+get_all_prices(product_name)
